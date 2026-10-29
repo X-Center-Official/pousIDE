@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PousIDE</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#171923;color:white;font:14px Arial}
+button,input,select{font:inherit}
+button{cursor:pointer;border:0;border-radius:7px;padding:9px;background:#41485e;color:white}
+header{height:54px;background:#252938;display:flex;align-items:center;gap:10px;padding:0 12px;justify-content:space-between}
+header b{font-size:18px}
+.header-right{display:flex;gap:8px;align-items:center}
+#layout{height:calc(100dvh - 54px);min-height:560px;display:grid;grid-template-columns:200px minmax(220px,1fr) 300px;gap:8px;padding:8px}
+.panel{background:#232737;border:1px solid #3a4053;border-radius:9px;min-width:0;overflow:hidden;display:flex;flex-direction:column}
+.heading{padding:12px;font-weight:bold;border-bottom:1px solid #3a4053;background:#292e3f;display:flex;justify-content:space-between;align-items:center}
+#palette{overflow:auto}
+.cat{padding:10px 10px 4px 10px;color:#c3cce0;font-weight:bold;font-size:11px;letter-spacing:0.5px;margin-top:6px}
+.paletteBlock{display:block;width:calc(100% - 16px);margin:6px 8px;padding:12px 8px;border-radius:7px;cursor:grab;user-select:none;touch-action:none;font-size:12px;font-weight:bold}
+.event{background:#d8a522;color:#342806}
+.motion{background:#368fe0}
+.look{background:#9956c8}
+.custom{background:#cf4c9b}
+.palette-ghost,.block-ghost{
+  pointer-events:none!important;
+  z-index:999999!important;
+  opacity:1!important;
+  box-shadow:0 14px 32px rgba(0,0,0,0.55)!important;
+  filter:brightness(1.05);
+  border-radius:7px;
+}
+#workPanel{display:flex;flex-direction:column}
+#workInfo{font-size:12px;color:#bdc5d9;padding:10px 12px 8px}
+#workspace{position:relative;flex:1;min-height:330px;overflow:auto;background-color:#e6e6e6;background-image:radial-gradient(#cccccc 1px,transparent 1px);background-size:18px 18px;touch-action:pan-x pan-y}
+#empty{position:absolute;top:42%;left:5%;width:90%;text-align:center;color:#666;line-height:1.8;pointer-events:none}
+.stack{min-width:180px;max-width:calc(100% - 24px);touch-action:none;user-select:none}
+
+/* ========== BLOQUES ESTILO SCRATCH (igual a la imagen) ========== */
+.block{
+  position:relative;
+  min-height:44px;
+  padding:10px 18px;
+  color:#fff;
+  font-size:15px;
+  font-weight:600;
+  white-space:nowrap;
+  display:flex;
+  align-items:center;
+  filter:drop-shadow(0 2px 0 rgba(0,0,0,0.15));
+  cursor:grab;
+  user-select:none;
+  border-radius:0;
+}
+
+/* 🟡 BLOQUE EVENTO / BANDERA VERDE */
+.block.hat,
+.block.event{
+  background:#ffd000;
+  color:#1a1a1a;
+  font-weight:600;
+  border-radius: 12px 12px 0 0;
+  clip-path: polygon(
+    0% 0%,
+    100% 0%,
+    100% 100%,
+    34px 100%,
+    34px calc(100% - 8px),
+    14px calc(100% - 8px),
+    14px 100%,
+    0% 100%
+  );
+  padding:12px 20px 10px 20px;
+}
+
+/* 🟣 BLOQUE DE APARIENCIA / DECIR */
+.block.look{
+  background:#cf63cf;
+  color:#ffffff;
+  clip-path: polygon(
+    0% 0%,
+    14px 0%,
+    14px 8px,
+    34px 8px,
+    34px 0%,
+    100% 0%,
+    100% 100%,
+    0% 100%
+  );
+  margin-top:0 !important;
+  padding:10px 20px;
+  border-radius:0 0 4px 4px;
+}
+
+/* 🔵 BLOQUES DE MOVIMIENTO y otros normales */
+.block.normal,
+.block.motion{
+  background:#4c97ff;
+  clip-path: polygon(
+    0px 8px,
+    14px 8px,
+    14px 0px,
+    34px 0px,
+    34px 8px,
+    100% 8px,
+    100% calc(100% - 8px),
+    34px calc(100% - 8px),
+    34px 100%,
+    14px 100%,
+    14px calc(100% - 8px),
+    0px calc(100% - 8px)
+  );
+}
+
+.block.control{ background:#ffab19; color:#3a2a08; }
+.block.custom{ background:#ff4d8d; }
+
+/* Bloque de definición personalizado */
+.block.custom-def,
+.modal-block-preview{
+  background:#ff4d8d;
+  color:#fff;
+  clip-path: none;
+  border-radius: 20px 12px 12px 20px;
+  padding: 12px 18px 12px 26px;
+  position: relative;
+  filter: drop-shadow(0 3px 0 rgba(0,0,0,0.2));
+}
+.block.custom-def::before,
+.modal-block-preview::before{
+  content:"";
+  position:absolute;
+  left:-10px;
+  top:50%;
+  transform:translateY(-50%);
+  width:16px;
+  height:22px;
+  background:inherit;
+  border-radius:8px 0 0 8px;
+  box-shadow: inset 2px 0 0 rgba(0,0,0,0.08);
+}
+
+.free-stack{
+  position:absolute !important;
+  min-width:160px;
+}
+
+/* Contenido interno del bloque */
+.blockContent{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:nowrap;
+  min-height:22px;
+  pointer-events:none;
+}
+.blockContent input,
+.blockContent button,
+.blockContent select{
+  pointer-events:auto;
+}
+.blockLabel{ flex-shrink:0; letter-spacing:0.2px; }
+.blockUnit{ font-weight:700; opacity:0.95; }
+
+/* Campo de texto dentro del bloque */
+.param{
+  border:0;
+  border-radius: 16px;
+  padding: 4px 12px;
+  text-align:center;
+  background:#ffffff;
+  color:#000000;
+  font-weight:500;
+  font-size:15px;
+  box-shadow: none;
+  outline:none;
+}
+.param.small{ width: auto; min-width: 80px; }
+.param.wide{ width:120px; border-radius:16px; }
+.param:focus{ box-shadow:0 0 0 2px rgba(207,99,207,0.5); }
+.param::-webkit-outer-spin-button,
+.param::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+
+/* Conexión entre bloques */
+.stack .block + .block{
+  margin-top:-8px;
+}
+
+.childStack{
+  margin: 4px 0 2px 10px;
+  min-height: 8px;
+  padding-left: 4px;
+}
+
+/* Menú contextual */
+.block-context-menu{
+  background:#252a3b;
+  border:1px solid #59617a;
+  border-radius:8px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.45);
+  padding:4px;
+  min-width:160px;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  z-index:1000000;
+}
+.block-context-menu button{
+  display:block;
+  width:100%;
+  text-align:left;
+  background:transparent;
+  color:#eceef5;
+  border:none;
+  border-radius:6px;
+  padding:10px 14px;
+  font-size:13px;
+  font-weight:bold;
+  cursor:pointer;
+}
+.block-context-menu button:hover{ background:#3a4053; }
+.block-context-menu button[data-action="delete"]:hover{ background:#a23d4c; }
+
+.childStack{
+  margin:6px 0 4px 12px;
+  min-height:12px;
+  border-left:3px solid rgba(0,0,0,0.15);
+  padding-left:6px;
+}
+
+.custom-dropdown{display:inline-block;position:relative;margin:0 4px}
+.custom-dropdown-btn{background:#ffffff;color:#222;border:none;border-radius:10px;padding:3px 10px;font-weight:bold;cursor:pointer;font-size:12px;box-shadow:0 1px 3px rgba(0,0,0,0.2)}
+.custom-dropdown-list{display:none;position:absolute;top:100%;left:0;background:#252a3b;border:1px solid #59617a;border-radius:8px;max-height:160px;overflow-y:auto;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.4);min-width:130px}
+.custom-dropdown-list.open{display:block}
+.custom-dropdown-option{padding:6px 10px;color:white;cursor:pointer;font-size:11px}
+.custom-dropdown-option:hover{background:#404d77}
+
+#workFooter{display:flex;gap:6px;padding:8px;flex-wrap:wrap;border-top:1px solid #3a4053}
+#workFooter button{font-size:12px}
+#stageControls{display:flex;gap:6px;padding:9px}
+#green{background:#27a85e;flex:1}
+#stop{background:#d94959}
+#stageWrap{padding:8px}
+#stage{position:relative;width:100%;aspect-ratio:4/3;background:#e8f0fe;overflow:hidden;border:2px solid #4a5066;border-radius:5px}
+.sprite{position:absolute;transform:translate(-50%,-50%);cursor:pointer;user-select:none;display:flex;flex-direction:column;align-items:center;transition:transform 0.1s;}
+.sprite svg, .sprite img{width:60px;height:60px;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.2));}
+.sprite.selected{outline:2px dashed #4e8cff;outline-offset:6px;border-radius:12px;}
+.bubble{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);background:white;border:1px solid #bbb;color:#222;border-radius:12px;padding:6px 8px;font-size:12px;max-width:140px;white-space:normal;overflow-wrap:anywhere;margin-bottom:8px;z-index:5}
+#spriteList{padding:7px 10px;border-top:1px solid #3a4053;flex:1;overflow:auto}
+.spriteRow{padding:8px;cursor:pointer;border-radius:6px;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;background:#1e2230;border:1px solid #31374a}
+.spriteRow.active{background:#404d77;border-color:#6379c7}
+.sprite-actions{display:flex;gap:4px;}
+.sprite-actions button{padding:3px 7px;font-size:11px;background:#4a526d}
+#addObjectMenu{display:none;position:absolute;background:#252a3b;border:1px solid #59617a;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);z-index:40;padding:4px}
+#addObjectMenu button{display:block;width:100%;text-align:left;background:none;padding:8px 12px;font-size:12px;border-radius:4px}
+#addObjectMenu button:hover{background:#3a4053}
+
+.custom-color-picker{display:flex;align-items:center;gap:6px;position:relative}
+.color-swatch-preview{width:28px;height:28px;border-radius:6px;border:2px solid #59617a;cursor:pointer;background:#8b5a2b}
+.color-palette-popover{display:none;position:absolute;top:100%;left:0;background:#252a3b;border:1px solid #59617a;padding:8px;border-radius:8px;grid-template-columns:repeat(5,1fr);gap:6px;z-index:120;box-shadow:0 4px 12px rgba(0,0,0,0.5)}
+.color-palette-popover.open{display:grid}
+.color-option{width:22px;height:22px;border-radius:4px;cursor:pointer;border:1px solid rgba(255,255,255,0.2)}
+.color-option:hover{transform:scale(1.15)}
+
+#paintModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:30;align-items:center;justify-content:center;padding:12px}
+#paintModal.open{display:flex}
+.paint-dialog{width:min(700px,100%);background:#252a3b;border:1px solid #59617a;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.paint-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#181c28;padding:8px;border-radius:8px}
+.paint-toolbar button{padding:6px 12px;font-size:12px;background:#3a4053}
+.paint-toolbar button.active{background:#cf4c9b}
+#svgCanvas{background:white;border-radius:8px;cursor:crosshair;touch-action:none;width:100%;height:320px}
+
+#textPromptBox {
+ display: none;
+ position: absolute;
+ background: #252a3b;
+ border: 1px solid #59617a;
+ padding: 8px;
+ border-radius: 8px;
+ z-index: 50;
+ box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+ gap: 6px;
+ align-items: center;
+}
+#textPromptBox input {
+ background: white;
+ color: #222;
+ border: none;
+ padding: 4px 8px;
+ border-radius: 4px;
+ font-size: 12px;
+ outline: none;
+}
+
+.ui-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:200;align-items:center;justify-content:center;padding:16px}
+.ui-modal-overlay.open{display:flex}
+.ui-modal-box{background:#252a3b;border:1px solid #59617a;border-radius:12px;padding:20px;width:min(400px,100%);box-shadow:0 8px 24px rgba(0,0,0,0.5);display:flex;flex-direction:column;gap:16px;text-align:center}
+.ui-modal-box p{margin:0;font-size:14px;line-height:1.4;color:#eceef5}
+.ui-modal-actions{display:flex;justify-content:center;gap:10px}
+.ui-modal-actions button{padding:8px 18px;font-size:13px;font-weight:bold;border-radius:6px}
+
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:20;align-items:center;justify-content:center;padding:12px}
+#modal.open{display:flex}
+.dialog{width:min(640px,100%);max-height:90dvh;overflow:auto;background:#f8f9fd;color:#333;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,0.3)}
+.modal-preview{background:#edf0f8;border-radius:12px;padding:20px;display:flex;flex-direction:column;align-items:center;position:relative;margin-bottom:20px}
+.modal-trash{background:transparent;border:none;width:36px;height:36px;display:flex;align-items:center;justify-content:center;margin-bottom:12px;cursor:pointer;font-size:22px;color:#f97316;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.15))}
+.modal-trash:hover{background:#fee2e2}
+.modal-block-preview{
+  background:#ff4d8d;
+  padding:12px 18px 12px 28px;
+  border-radius:22px 10px 10px 22px;
+  display:flex;align-items:center;gap:8px;
+  box-shadow:0 4px 12px rgba(255,77,141,0.35);
+  flex-wrap:wrap;max-width:100%;
+  position:relative;
+  color:white;font-weight:bold;
+}
+.modal-block-preview::before{
+  content:"";
+  position:absolute;left:-6px;top:50%;transform:translateY(-50%);
+  width:18px;height:28px;background:#ff4d8d;
+  border-radius:8px 0 0 8px;
+}
+.modal-block-preview input{background:white;border:none;border-radius:12px;padding:4px 10px;font-weight:bold;color:#333;text-align:center;outline:none;font-size:13px}
+.modal-block-preview input.preview-text{background:transparent;color:white;border-bottom:1px dashed rgba(255,255,255,0.6);border-radius:0;padding:2px 4px}
+.modal-block-preview .preview-bool{width:28px;height:16px;background:#b13781;border-radius:50% / 30%;border:1px solid white;display:inline-block}
+.modal-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.modal-card{background:white;border:2px solid #e2e8f0;border-radius:12px;padding:16px 10px;text-align:center;cursor:pointer;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;user-select:none}
+.modal-card:hover{border-color:#cf4c9b;box-shadow:0 4px 12px rgba(207,76,155,0.15);transform:translateY(-2px)}
+.modal-card-icon{width:46px;height:34px;background:#ff66a1;border-radius:14px;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:11px}
+.modal-card-icon.logic{border-radius:50% / 30%}
+.modal-card-icon.text{background:#ff66a1;border-radius:6px}
+.modal-card span{font-size:12px;font-weight:bold;color:#4a5568;line-height:1.3}
+.modal-check-row{display:flex;align-items:center;gap:8px;font-size:14px;color:#4a5568;margin-bottom:24px;font-weight:bold;cursor:pointer}
+.modal-check-row input{width:18px;height:18px;accent-color:#cf4c9b;cursor:pointer}
+.modal-buttons{display:flex;justify-content:flex-end;gap:10px}
+.modal-buttons button{padding:10px 24px;font-weight:bold;border-radius:8px}
+#cancelModal{background:white;color:#4a5568;border:1px solid #cbd5e0}
+#saveCustom{background:#855cd6;color:white}
+.small{font-size:12px;line-height:1.5;color:#b6c1d7}
+.myDef{display:flex;gap:5px;align-items:center;margin:4px 8px}
+.myDef .paletteBlock{flex:1;margin:0}
+.myDef button{background:#a23d4c;padding:6px 10px}
+
+@media(max-width:850px){
+#layout{height:auto;min-height:calc(100dvh - 54px);grid-template-columns:110px minmax(0,1fr);grid-template-rows:minmax(430px,60vh) auto}
+#rightPanel{grid-column:1/-1}
+#stageWrap{max-width:420px;margin:auto}
+.paletteBlock{font-size:11px;padding:10px 5px}
+.modal-cards{grid-template-columns:1fr}
+}
+
+.editor-tabs{
+  display:flex;gap:0;border-bottom:1px solid #3a4053;background:#292e3f;
+}
+.editor-tab{
+  flex:1;padding:10px 8px;background:transparent;color:#a5afc5;
+  border:none;border-bottom:2px solid transparent;border-radius:0;
+  font-weight:bold;font-size:13px;cursor:pointer;
+}
+.editor-tab.active{
+  color:#fff;border-bottom-color:#4e8cff;background:#232737;
+}
+.editor-tab:hover{color:#fff}
+.tab-panel{display:none;flex:1;flex-direction:column;min-height:0;overflow:hidden}
+.tab-panel.active{display:flex}
+#codePanel #workspace{flex:1;min-height:200px}
+.looks-canvas-wrap{
+  position:relative;flex:1;min-height:220px;padding:10px;
+  display:flex;align-items:center;justify-content:center;
+  background:#1a1e2a;
+}
+.looks-canvas-wrap #svgCanvas{
+  width:100%;height:100%;max-height:360px;background:#fff;
+  border-radius:8px;border:2px solid #4a5066;cursor:crosshair;
+}
+.inline-paint-toolbar{
+  display:flex;gap:6px;flex-wrap:wrap;align-items:center;
+  padding:8px;background:#181c28;border-bottom:1px solid #3a4053;
+}
+.inline-paint-toolbar button{padding:6px 10px;font-size:12px;background:#3a4053}
+.inline-paint-toolbar button.active{background:#cf4c9b}
+.spriteRow .sprite-actions button{padding:3px 7px;font-size:11px;background:#4a526d}
+.spriteRow .sprite-actions button.danger{background:#a23d4c}
+.sprite-thumb{
+  width:28px;height:28px;border-radius:6px;background:#1e2230;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+  border:1px solid #31374a;flex-shrink:0;
+}
+.sprite-thumb svg,.sprite-thumb img{width:100%;height:100%;object-fit:contain}
+.color-option.selected{
+  outline:2px solid #fff;
+  outline-offset:1px;
+  transform:scale(1.15);
+}
+.custom-color-picker{position:relative;z-index:50}
+.color-palette-popover{
+  z-index:200 !important;
+}
+#textPromptBox{
+  display:none;
+  position:absolute;
+  background:#252a3b;
+  border:1px solid #59617a;
+  padding:8px;
+  border-radius:8px;
+  z-index:80;
+  box-shadow:0 4px 12px rgba(0,0,0,0.4);
+  gap:6px;
+  align-items:center;
+}
+#looksPanel.active{
+  display:flex !important;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+}
+.looks-canvas-wrap{
+  flex:1;
+  min-height:240px;
+}
+#layout.looks-mode{
+  grid-template-columns: minmax(0,1fr) 300px;
+}
+#layout.looks-mode #palette{
+  display:none !important;
+}
+#looksPanel.active{
+  display:flex !important;
+  flex-direction:column;
+  flex:1 1 auto;
+  min-height:0;
+  height:100%;
+  overflow:hidden;
+}
+#looksPanel .inline-paint-toolbar{
+  flex-shrink:0;
+}
+#looksPanel #workFooter{
+  flex-shrink:0;
+}
+.looks-canvas-wrap{
+  position:relative;
+  flex:1 1 auto;
+  min-height:0;
+  width:100%;
+  padding:10px;
+  display:flex;
+  align-items:stretch;
+  justify-content:stretch;
+  background:#1a1e2a;
+  overflow:hidden;
+}
+.looks-canvas-wrap #svgCanvas{
+  width:100% !important;
+  height:100% !important;
+  max-height:none !important;
+  flex:1;
+  background:#fff;
+  border-radius:8px;
+  border:2px solid #4a5066;
+  cursor:crosshair;
+  touch-action:none;
+}
+#workPanel{
+  min-height:0;
+  height:100%;
+}
+@media(max-width:850px){
+  #layout.looks-mode{
+    grid-template-columns: minmax(0,1fr);
+    grid-template-rows: minmax(430px,60vh) auto;
+  }
+}
+.looks-canvas-wrap{
+  padding:16px !important;
+  box-sizing:border-box;
+}
+.looks-canvas-wrap #svgCanvas{
+  box-sizing:border-box;
+}
+.inline-paint-toolbar{
+  padding:10px 12px !important;
+  gap:8px !important;
+}
+.inline-paint-toolbar button{
+  padding:8px 12px !important;
+  font-size:12px;
+  background:#3a4053;
+  border:2px solid transparent;
+  opacity:0.75;
+  transition:background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.inline-paint-toolbar button.active{
+  background:#cf4c9b !important;
+  border-color:#ff9fd0;
+  opacity:1;
+  box-shadow:0 0 0 2px rgba(207,76,155,0.35);
+}
+.editor-tabs{
+  padding:0 4px;
+}
+.editor-tab{
+  opacity:0.7;
+}
+.editor-tab.active{
+  opacity:1;
+}
+.stroke-width-wrap{
+  background:#1e2230;padding:4px 8px;border-radius:8px;color:#c3cce0;
+}
+.stroke-width-wrap input[type=range]{cursor:pointer}
+.key-select, select.param{
+  pointer-events:auto !important;
+  position:relative;
+  z-index:5;
+  width:auto !important;
+  min-width:110px;
+  max-width:160px;
+  height:26px;
+  border:0;
+  border-radius:13px;
+  padding:0 8px;
+  background:#fff;
+  color:#222;
+  font-weight:bold;
+  font-size:12px;
+  cursor:pointer;
+  outline:none;
+}
+.key-select:focus{box-shadow:0 0 0 2px rgba(255,255,255,0.7)}
+.block.hat.custom, .block.define{
+  background:#ff4d8d !important;
+  color:#fff !important;
+}
+</style>
+</head>
+<body>
+<header>
+ <div><b>🟢 PousIDE</b></div>
+ <div class="header-right">
+  <button id="exportPP1" style="background:#586bd1;">💾 Exportar .pp1</button>
+  <button id="importPP1" style="background:#3a4053;">📂 Cargar .pp1</button>
+  <input type="file" id="fileInputPP1" accept=".pp1" style="display:none">
+  <button id="green">🚩</button>
+  <button id="stop">⏹</button>
+ </div>
+</header>
+
+<div id="layout">
+<section class="panel" id="palette">
+ <div class="heading">Bloques</div>
+ <div id="basePalette">
+  <div class="cat">🟡 EVENTOS</div>
+  <div class="paletteBlock event" data-type="flag">🚩 Cuando se presione la bandera verde</div>
+  <div class="paletteBlock event" data-type="key">⌨️ Al presionar tecla</div>
+  <div class="paletteBlock event" data-type="touch">👆 Al tocar objeto</div>
+  
+  <div class="cat">🔵 MOVIMIENTO</div>
+  <div class="paletteBlock motion" data-type="move">Mover 10 pasos</div>
+  <div class="paletteBlock motion" data-type="left">↶ Girar 15°</div>
+  <div class="paletteBlock motion" data-type="right">↷ Girar 15°</div>
+  
+  <div class="cat">🟣 APARIENCIA</div>
+  <div class="paletteBlock look" data-type="show">Mostrar</div>
+  <div class="paletteBlock look" data-type="hide">Ocultar</div>
+  <div class="paletteBlock look" data-type="say">💬 Decir ¡Hola!</div>
+
+  <div class="cat">🌸 MIS BLOQUES</div>
+  <button id="createCustom" style="margin:4px 8px;width:calc(100% - 16px);background:#a83d85;font-size:12px;font-weight:bold">＋ Crear un bloque</button>
+  <div id="myBlocks"></div>
+ </div>
+</section>
+
+<section class="panel" id="workPanel">
+ <div class="heading">
+  <span id="workTitle">Workspace</span>
+ </div>
+ <div class="editor-tabs">
+  <button type="button" class="editor-tab active" data-tab="code" id="tabCode">🧩 Código</button>
+  <button type="button" class="editor-tab" data-tab="looks" id="tabLooks">🎨 Apariencia</button>
+ </div>
+ <div id="codePanel" class="tab-panel active">
+  <div id="workInfo">Programa del objeto seleccionado</div>
+  <div id="workspace"><div id="empty">🧩<br>Arrastra bloques aquí<br>Puedes dejarlos sueltos o conectarlos</div></div>
+  <div id="workFooter"><button id="runObject">▶ Ejecutar objeto</button><button id="deleteAll">🗑 Borrar programa</button></div>
+ </div>
+ <div id="looksPanel" class="tab-panel">
+  <div class="paint-toolbar inline-paint-toolbar">
+   <button type="button" id="toolCircle" class="active">🔴 Círculo</button>
+   <button type="button" id="toolRect">🟦 Rectángulo</button>
+   <button type="button" id="toolPencil">✏️ Lápiz</button>
+   <button type="button" id="toolFill">🪣 Relleno</button>
+   <button type="button" id="toolText">🔤 Texto</button>
+   <label id="strokeWidthWrap" class="stroke-width-wrap" style="display:flex;align-items:center;gap:6px;font-size:12px">
+     <span>Grosor</span>
+     <input type="range" id="strokeWidth" min="1" max="24" value="3" style="width:90px;accent-color:#cf4c9b">
+     <span id="strokeWidthVal">3</span>
+   </label>
+   <div class="custom-color-picker">
+    <span style="font-size:12px">Color:</span>
+    <div class="color-swatch-preview" id="colorSwatchBtn" style="background:#4c97ff"></div>
+    <div class="color-palette-popover" id="colorPalettePopover"></div>
+   </div>
+   <button type="button" id="clearSvg" style="background:#a23d4c;margin-left:auto">🗑️ Limpiar</button>
+  </div>
+  <div class="looks-canvas-wrap">
+   <svg id="svgCanvas" viewBox="0 0 200 200"></svg>
+   <div id="textPromptBox">
+    <input type="text" id="svgTextInput" placeholder="Escribe tu texto...">
+    <button type="button" id="svgTextOk" style="background:#27a85e">OK</button>
+   </div>
+  </div>
+  <div id="workFooter" style="border-top:1px solid #3a4053">
+   <button type="button" id="saveSvg" style="background:#27a85e">💾 Guardar disfraz</button>
+   <button type="button" id="resetCostume" style="background:#3a4053">↺ Disfraz por defecto</button>
+  </div>
+ </div>
+</section>
+
+<section class="panel" id="rightPanel">
+ <div class="heading">Escenario · 4:3</div>
+ <div id="stageControls"><button id="green2">🚩 Bandera verde</button><button id="stop2">⏹ Detener</button></div>
+ <div id="stageWrap"><div id="stage"></div></div>
+ <div class="heading">
+  <span>Objetos</span>
+  <button id="openAddObjectMenu" style="font-size:11px;padding:4px 10px;background:#27a85e;font-weight:bold">＋ Objeto</button>
+ </div>
+ <div id="spriteList"></div>
+</section>
+</div>
+
+<div id="addObjectMenu">
+ <button type="button" id="menuDrawSvg">✏️ Dibujar con editor SVG</button>
+ <button type="button" id="menuImportFile">📁 Subir archivo (imagen o .ps1)</button>
+</div>
+<input type="file" id="fileInputAsset" accept="image/*,.ps1" style="display:none">
+
+<div id="modal">
+ <div class="dialog">
+  <div class="modal-preview">
+   <div class="modal-trash" id="clearPreviewBtn" title="Restablecer">🗑️</div>
+   <div class="modal-block-preview" id="blockPreviewContainer"></div>
+  </div>
+
+  <div class="modal-cards">
+   <div class="modal-card" id="addParamNumber">
+    <div class="modal-card-icon"></div>
+    <span>Añadir una entrada<br>número o texto</span>
+   </div>
+   <div class="modal-card" id="addParamLogic">
+    <div class="modal-card-icon logic"></div>
+    <span>Añadir una entrada<br>lógica</span>
+   </div>
+   <div class="modal-card" id="addLabel">
+    <div class="modal-card-icon text">text</div>
+    <span>Añadir una etiqueta</span>
+   </div>
+  </div>
+
+  <label class="modal-check-row">
+   <input type="checkbox" id="runInstantCheck"> Ejecutar al instante
+  </label>
+
+  <div class="modal-buttons">
+   <button id="cancelModal">Cancelar</button>
+   <button id="saveCustom">Aceptar</button>
+  </div>
+ </div>
+</div>
+
+<!-- Modal Alert Personalizado -->
+<div class="ui-modal-overlay" id="uiAlertModal">
+ <div class="ui-modal-box">
+  <p id="uiAlertMessage"></p>
+  <div class="ui-modal-actions">
+   <button id="uiAlertOk" style="background:#4e8cff;">Entendido</button>
+  </div>
+ </div>
+</div>
+
+<!-- Modal Confirm Personalizado -->
+<div class="ui-modal-overlay" id="uiConfirmModal">
+ <div class="ui-modal-box">
+  <p id="uiConfirmMessage"></p>
+  <div class="ui-modal-actions">
+   <button id="uiConfirmCancel" style="background:#3a4053;">Cancelar</button>
+   <button id="uiConfirmOk" style="background:#d94959;">Aceptar</button>
+  </div>
+ </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
